@@ -1,0 +1,194 @@
+AsciiCode
+=========
+Jeremy Hughes <jed@jedatwork.com>
+2012-08-03: First draft.
+
+:AsciiDoc: http://methods.co.nz/asciidoc/[AsciiDoc]
+:AsciiDoc-jedahu: https://github.com/jedahu/asciidoc/
+:AsciiCode: https://github.com/jedahu/asciicode/[AsciiCode]
+:adextract: https://github.com/ahamez/adextract/[adextract]
+
+{AsciiCode}, derived and simplified from {adextract}, is a small library that
+facilitates transforming source-code as if it were AsciiDoc. It does this by
+extracting AsciiDoc text from comments and putting the intervening code into
+code listing blocks.
+
+
+
+API
+---
+
+The API consists of four functions with similar prototypes. Each requires an
+AsciiDoc function to be supplied. How you do that is up to you; this library
+makes no decisions regarding AsciiDoc setup or configuration.
+
+- `process_string(asciidoc_fn, string, **kwargs)`
+- `process_lines(asciidoc_fn, lines, **kwargs)`
+- `process_file(asciidoc_fn, file, **kwargs)`
+- `process_path(asciidoc_fn, path, **kwargs)`
+
+
+=== Arguments
+
+They take the following positional arguments:
+
+`asciidoc_fn`::
+  A function that takes a single file-like object (can be a `StringIO`)
+  containing AsciiDoc, transforms its contents, and returns a different
+  file-like object containing the results of the transformation. It is assumed
+  that `asciidoc_fn` uses the AsciiDoc API to do this.
+`string`::
+  A string containing source-code with AsciiDoc comments.
+`lines`::
+  Same as string, but as a list of lines.
+`file`::
+  Same as string but as a file-like object with a `read()` method.
+`path`::
+  A file-path pointing to file containing source-code with AsciiDoc comments.
+  The file extension will be used to guess the source-code language and comment
+  syntax.
+
+and these keyword arguments:
+
+`language`::
+  A string. The language the code is written in. This will be set as the
+  language for each code listing block to make source highlighting possible.
+  When used with `process_path` this argument overrides the language guessed
+  from the file extension.
+`comments`::
+  A string giving the source's multiline comment syntax. The opening and
+  closing tokens must be separated by whitespace. E.g., for C: `"/* */"`. When
+  used with `process_path` this argument overrides the comment syntax guessed
+  from the file extension.
+`src_numbered`::
+  A boolean indicating whether the highlighted source should be numbered or
+  not.
+`modeline_depth`::
+  The number of lines to read when searching for a modeline.
+
+
+=== Return value
+
+Each function returns a `StringIO` object containing the output from the
+provided `asciidoc_fn`.
+
+
+
+Modeline
+--------
+
+If one of the first few lines of input contains the string `":asciicode:"` it
+will be treated as a modeline, which means two things:
+
+1. It wont appear in the output.
+2. It may override (for this input only) any of the above keyword arguments.
+
+This modeline:
+
+    /* :asciicode: language=c++ comments="/* */" src_numbered. */
+
+sets the language to C\++, the comments accordingly, and turns source numbering
+on.
+
+This modeline:
+
+    # :asciicode: language=python no_src_numbered.
+
+turns source numbering off and sets the language to Python. It leaves the
+comments unchanged (if they are not passed by the caller they will be guessed
+from the language).
+
+Note that the modeline must be ended with a period (before any closing
+comment).
+
+The modeline syntax is such that it blends in nicely with an AsciiDoc header:
+
+    {-.
+    Hello world
+    ===========
+    Mr Beginner <me@example.com>
+    v0.1, 2012-08-03: First attempt.
+    :asciicode: language=clojure comments="{- -}".
+
+    Let's see...
+    .-}
+
+    main = putStrLn "Hello World!"
+
+
+
+Filter
+------
+
+If you are using the {AsciiDoc-jedahu}[jedahu version of AsciiDoc], you can
+use AsciiCode as a filter in two simple steps.
+
+1. Make sure the `asciicode` module is on python's path (`pip install` will
+   take care of that for you).
+2. Run AsciiDoc with the `filter-modules` attribute set to `asciicode`. This
+   can be done from the commandline (`asciidoc
+   --attribute=filter-modules=asciicode asciidoc_file.txt`), or using
+   `AsciiDocApi`.
+
+The typical use-case of this filter is to include the code source file to be
+processed in a passthrough block (AsciiCode only work on this block type), whose
+style attribute is 'asciicode':
+
+    [asciicode]
+    ++++
+    include::foo.c[]
+    ++++
+
+You can also provide the 'numbered' attribute to number source code lines:
+
+    [asciicode, numbered]
+    ++++
+    include::foo.c[]
+    ++++
+
+The file foo.c could be something like:
+
+    /*
+    Here, some _AsciiDoc_ stuff.
+    */
+
+    int main(int argc, char** argv)
+    {
+      return 0;
+    }
+
+    /*
+    Some other *AsciiDoc* stuff.
+    */
+
+Comment syntax is guessed from the file extension, but you can set them
+explicitly by by specifying a 'comments' attribute (don't forget the quotes):
+
+    [asciicode, comments='(* *)']
+    ++++
+    include::foo.sml[]
+    ++++
+
+You can also set the language explicity (required for syntax highlighting):
+
+    [asciicode, python, comments="''' '''"]
+    ++++
+    include::foo.py[]
+    ++++
+
+[asciicode,python]
+++++++++
+include::asciicode/__init__.py[]
+++++++++
+
+
+Attribution
+-----------
+
+:hamez-email: mailto:alexandre.hamez@gmail.com
+:rack-email: mailto:srackham@gmail.com
+
+{hamez-email}[Alexandre Hamez]::
+  Creator of {adextract}.
+{rack-email}[Stuart Rackham]::
+  Creator of {AsciiDoc}.
