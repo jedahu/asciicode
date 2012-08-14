@@ -13,6 +13,9 @@ facilitates transforming source-code as if it were AsciiDoc. It does this by
 extracting AsciiDoc text from comments and putting the intervening code into
 code listing blocks.
 
+NOTE: This library requires the modified AsciiDoc from
+{AsciiDoc-jedahu}[jedahu].
+
 
 
 API
@@ -33,10 +36,7 @@ makes no decisions regarding AsciiDoc setup or configuration.
 They take the following positional arguments:
 
 `asciidoc_fn`::
-  A function that takes a single file-like object (can be a `StringIO`)
-  containing AsciiDoc, transforms its contents, and returns a different
-  file-like object containing the results of the transformation. It is assumed
-  that `asciidoc_fn` uses the AsciiDoc API to do this.
+  A function that is `asciidoc.execute()` or mimics its prototype.
 `string`::
   A string containing source-code with AsciiDoc comments.
 `lines`::
@@ -53,18 +53,20 @@ and these keyword arguments:
 `language`::
   A string. The language the code is written in. This will be set as the
   language for each code listing block to make source highlighting possible.
-  When used with `process_path` this argument overrides the language guessed
+  When used with `process_path()` this argument overrides the language guessed
   from the file extension.
 `comments`::
-  A string giving the source's multiline comment syntax. The opening and
-  closing tokens must be separated by whitespace. E.g., for C: `"/* */"`. When
-  used with `process_path` this argument overrides the comment syntax guessed
-  from the file extension.
-`src_numbered`::
+  A three element tuple of opening, continuing, and closing comments. E.g., for
+  C: `("/*", " * ", " */"). When used with `process_path()` this argument
+  overrides the comment syntax guessed from the file extension.
+`numbered`::
   A boolean indicating whether the highlighted source should be numbered or
   not.
 `modeline_depth`::
   The number of lines to read when searching for a modeline.
+`asciidoc_args`::
+  A dictionary of keyword arguments that will be parssed unmodified to the
+  `asciidoc_fn`.
 
 
 === Return value
@@ -74,46 +76,51 @@ provided `asciidoc_fn`.
 
 
 
-Modeline
---------
+In-file overrides
+-----------------
 
-If one of the first few lines of input contains the string `":asciicode:"` it
-will be treated as a modeline, which means two things:
+If any of the first few lines of input contain the regex `":asciicode-(\S+):"`
+they will be treated as keyword args, which means two things:
 
-1. It wont appear in the output.
-2. It may override (for this input only) any of the above keyword arguments.
+1. They wont appear in the output.
+2. They may override any of the above keyword arguments.
 
-This modeline:
+These lines:
 
-    /* :asciicode: language=c++ comments="/* */" src_numbered. */
+    :asciicode-language: ruby
+    :asciicode-comments: "#.", "# ", "#."
+    :asciicode-numbered: yes
 
-sets the language to C\++, the comments accordingly, and turns source numbering
+set the language to Ruby, the comments accordingly, and turn source numbering
 on.
 
-This modeline:
+These lines:
 
-    # :asciicode: language=python no_src_numbered.
+    :asciicode-language: python
+    :asciicode-numbered: no
 
-turns source numbering off and sets the language to Python. It leaves the
+turn source numbering off and set the language to Python. They leave the
 comments unchanged (if they are not passed by the caller they will be guessed
 from the language).
 
-Note that the modeline must be ended with a period (before any closing
-comment).
+Here is a simple Haskell program with with keyword overrides in the AsciiDoc
+header.
 
-The modeline syntax is such that it blends in nicely with an AsciiDoc header:
+[source,haskell]
+--------------------------------------------------------------------------------
+{-.
+Hello world
+===========
+Mr Beginner <me@example.com>
+v0.1, 2012-08-03: First attempt.
+:asciicode-language: haskell
+:asciicode-comments: "{-", "", "-}"
 
-    {-.
-    Hello world
-    ===========
-    Mr Beginner <me@example.com>
-    v0.1, 2012-08-03: First attempt.
-    :asciicode: language=clojure comments="{- -}".
+Let's see...
+.-}
 
-    Let's see...
-    .-}
-
-    main = putStrLn "Hello World!"
+main = putStrLn "Hello World!"
+--------------------------------------------------------------------------------
 
 
 
@@ -128,58 +135,43 @@ use AsciiCode as a filter in two simple steps.
 2. Run AsciiDoc with the `filter-modules` attribute set to `asciicode`. This
    can be done from the commandline (`asciidoc
    --attribute=filter-modules=asciicode asciidoc_file.txt`), or using
-   `AsciiDocApi`.
+   `asciidoc.execute()`.
 
 The typical use-case of this filter is to include the code source file to be
 processed in a passthrough block (AsciiCode only work on this block type), whose
-style attribute is 'asciicode':
+style attribute is `asciicode`:
 
     [asciicode]
     ++++
     include::foo.c[]
     ++++
 
-You can also provide the 'numbered' attribute to number source code lines:
+You can also provide the `numbered` attribute to number source code lines and
+a `comments` keyword attribute to set the comment syntax:
 
-    [asciicode, numbered]
+    [asciicode,numbered,comments=("/**", " * ", " */")]
     ++++
-    include::foo.c[]
+    include::foo.java[]
     ++++
 
-The file foo.c could be something like:
+The file foo.java could be something like:
 
-    /*
-    Here, some _AsciiDoc_ stuff.
-    */
+    /**
+     * Here, some _AsciiDoc_ stuff.
+     */
 
-    int main(int argc, char** argv)
-    {
-      return 0;
+    class Main {
+
+      public static void main(String[] args) {
+        return 0;
+      }
+
     }
 
-    /*
-    Some other *AsciiDoc* stuff.
-    */
+    /**
+     * Some other *AsciiDoc* stuff.
+     */
 
-Comment syntax is guessed from the file extension, but you can set them
-explicitly by by specifying a 'comments' attribute (don't forget the quotes):
-
-    [asciicode, comments='(* *)']
-    ++++
-    include::foo.sml[]
-    ++++
-
-You can also set the language explicity (required for syntax highlighting):
-
-    [asciicode, python, comments="''' '''"]
-    ++++
-    include::foo.py[]
-    ++++
-
-[asciicode,python]
-++++++++
-include::asciicode/__init__.py[]
-++++++++
 
 
 Attribution
@@ -192,3 +184,5 @@ Attribution
   Creator of {adextract}.
 {rack-email}[Stuart Rackham]::
   Creator of {AsciiDoc}.
+
+// vim: set ft=asciidoc tw=80:

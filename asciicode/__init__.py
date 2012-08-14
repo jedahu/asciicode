@@ -3,7 +3,7 @@ AsciiCode
 =========
 Jeremy Hughes <jed@jedatwork.com>
 0.1.0, 2012-08-03: Initial derivation from adextract.
-:asciicode: language=python comments="''' '''".
+:asciicode-language: python
 
 :AsciiDoc: http://methods.co.nz/asciidoc/[AsciiDoc]
 
@@ -11,159 +11,148 @@ An {AsciiDoc} filter for including source files with AsciiDoc comments.
 .'''
 import os
 import re
-import shlex
+import ast
 from StringIO import StringIO
 
-MODELINE_START = ':asciicode:'
-MODELINE_END = '.'
+MODELINE = re.compile('''^.*?:asciicode-([^:]+):\s+(.+?)\s*$''')
 DEFAULT_MODELINE_DEPTH = 10
 
 DEFAULT_LANGUAGE = 'text'
 
 COMMENTS = {
-    'python': "'\'' '\''",
-    'py':     "'\'' '\''",
-    'c':      '/* */',
-    'c++':    '/* */',
-    'cpp':    '/* */',
-    'cxx':    '/* */',
-    'java':   '/* */',
+    'python': ("'''.", None, ".'''"),
+    'py':     ("'''.", None, ".'''"),
+    'c':      ('/*.', None, '.*/'),
+    'c++':    ('/*.', None, '.*/'),
+    'cpp':    ('/*.', None, '.*/'),
+    'cxx':    ('/*.', None, '.*/'),
+    'java':   ('/*.', None, '.*/')
     }
 
 
-def is_modeline(line):
-  return line.find(MODELINE_START) != -1
+class EAsciiCode(Exception):
+  pass
 
-def parse_modeline(line):
-  start = line.find(MODELINE_START) + len(MODELINE_START)
-  end = line.rfind(MODELINE_END)
-  pairs = shlex.split(line[start:end])
-  conf = {}
-  for p in pairs:
-    if '=' in p:
-      key, val = p.split('=')
-      conf[key] = val
-    elif p.startswith('no_'):
-      conf[p[3:]] = False
-    else:
-      conf[p] = True
-  return conf
+'''.
+Modelines
+---------
+
+Modelines are
+.'''
+
+def is_modeline(line):
+  match = MODELINE.match(line)
+  if match:
+    attr = match.groups()[0]
+    val = match.groups()[1]
+    return (attr, val)
+  return None
+
+def parse_attr_val(name, string):
+  if name == 'src_numbered':
+    return {name: string.lower() not in ('no', 'false', '0')}
+  elif name == 'comments':
+    return {name: ast.literal_eval(string)}
+  else:
+    return {name: string}
 
 def modeline_conf(lines, depth):
   if not depth:
     depth = DEFAULT_MODELINE_DEPTH
+  conf = {}
   for idx, line in enumerate(lines):
-    if is_modeline(line):
-      return parse_modeline(line)
+    args = is_modeline(line)
+    if args:
+      conf.update(parse_attr_val(*args))
     if idx == depth:
       break
-  return {}
+  return conf
 
 
-class AsciiDocBlock(object):
-
-  def __init__(self, arg):
-    super(AsciiDocBlock, self).__init__()
-    self.content = arg
-
-  def __len__(self):
-    return len(self.content)
-
-  def __str__(self):
-    return self.content
-
-
-class CodeBlock(object):
-
-  """CodeBlock is actually a list of source code lines."""
-
-  currentLine = 1
-  numbered    = False
-  language    = None
-
-  def __init__(self, arg):
-    super(CodeBlock, self).__init__()
-    self.content  = arg
-
-  def __str__(self):
-
-    res = ""
-
-    if self.content:
-      language = self.__class__.language or DEFAULT_LANGUAGE
-      attrlist = ['source', language]
-      if self.__class__.numbered:
-        attrlist.append('numbered')
-      res = '[' + ','.join(attrlist) + "]\n"
-      res += "----\n"
-      res += self.content
-      res += "\n"
-      res += "----\n"
-
-    return res
-
-
-def parseBlocks(
-    data, output, language=None, src_numbered=False,
+def parse_blocks(
+    stream, output, language=DEFAULT_LANGUAGE, numbered=False,
     comments=None, **kwargs):
 
   if not comments and not language:
-    raise Exception('No language or comments makes asciicode sad.')
+    raise EAsciiCode, 'No language or comments makes asciicode sad.'
 
   if not comments and language:
     comments = COMMENTS[language]
 
-  start, end = comments.split()
-
-  CodeBlock.numbered = src_numbered
-  CodeBlock.language = language
+  start, mid, end = comments
 
   startTag = re.escape(start)
+  midTag = re.escape(mid) if mid else None
   endTag   = re.escape(end)
 
-  asciiDocRE = re.compile( startTag
-                         + """\.(.*?)\."""
-                         + endTag
-                         + """\n?"""
-                         , re.DOTALL
-                         )
+  startRE = re.compile('''^(\s*?)''' + startTag + '''\s*$''')
+  midRE = None
+  if mid:
+    midRE = re.compile('''^(\s*?''' + midTag + ''')\s*''')
+  endRE = re.compile('''^(\s*?)''' + endTag + '''$''')
 
-  pos            = 0
-  blocks         = []
+  doc_block = False
+  code_block = False
+  indent = 0
 
-  while pos < len(data):
+  for line in stream:
 
-    m = asciiDocRE.search(data, pos)
+    with open('/tmp/all', 'a') as f:
+      f.write(line)
+    start_match = startRE.match(line)
+    if not doc_block and start_match:
+      if code_block:
+        output.write("-----\n\n")
+      code_block = False
+      doc_block = True
+      indent = len(start_match.groups()[0])
+    elif doc_block and endRE.match(line):
+      doc_block = False
+    elif doc_block:
+      line = line[indent:]
+      if midRE:
+        mid_match = midRE.match(line)
+        if not mid_match:
+          raise EAsciiCode, 'Could not find comment: %s' % mid
+        mid_indent = len(mid_match.groups()[0]) + 1
+        line = line[mid_indent:]
+      output.write(line)
+    else:
+      if not code_block:
+        attrlist = ['source', language]
+        if src_numbered:
+          attrlist.append('numbered')
+        output.write('[' + ','.join(attrlist) + "]\n")
+        output.write("-----\n")
+        code_block = True
+      output.write(line)
 
-    if not m:
-      break
-
-    blocks.append(CodeBlock(data[pos : m.start(0)]))
-    blocks.append(AsciiDocBlock(m.group(1)))
-
-    pos = m.end(0)
-
-  blocks.append(CodeBlock(data[pos:]))
-
-  for b in blocks:
-    output.write(str(b) + "\n")
+  if code_block:
+    output.write("-----\n")
 
 
-def process_string(asciidoc_fn, string, modeline_depth=None, **kwargs):
-  conf = modeline_conf(StringIO(string), modeline_depth)
+def process_string(asciidoc_fn, stream, modeline_depth=None, asciidoc_args={}, **kwargs):
+  conf = modeline_conf(stream, modeline_depth)
+  if hasattr(stream, 'seek'):
+    stream.seek(0)
   kwargs.update(conf)
   parsed = StringIO()
-  parseBlocks(string, parsed, **kwargs)
+  parse_blocks(stream, parsed, **kwargs)
+  with open('/tmp/out.txt', 'w') as f:
+    f.write(parsed.getvalue())
   parsed.seek(0)
-  out = asciidoc_fn(parsed)
+  out = StringIO()
+  asciidoc_fn(parsed, out, **asciidoc_args)
   out.seek(0)
   return out
 
 def process_file(asciidoc_fn, infile, **kwargs):
-  string = infile.read()
-  return process_string(asciidoc_fn, string, **kwargs)
+  return process_string(asciidoc_fn, infile, **kwargs)
 
-def process_path(asciidoc_fn, path, modeline_depth=None, **kwargs):
+def process_path(asciidoc_fn, path, modeline_depth=None, asciidoc_args={}, **kwargs):
+  path = os.path.abspath(path)
+  if 'inpath' not in asciidoc_args:
+    asciidoc_args['inpath'] = path
   with open(path) as f:
     conf = modeline_conf(f, modeline_depth)
     kwargs.update(conf)
@@ -171,13 +160,20 @@ def process_path(asciidoc_fn, path, modeline_depth=None, **kwargs):
   if ((ext in ['', 'txt', 'asciidoc'] or ext not in COMMENTS)
       and 'comments' not in kwargs and 'language' not in kwargs):
     # Process as plain AsciiDoc
-    out = asciidoc_fn(path)
-    out.seek(0)
-    return out
+    with open(path) as infile:
+      out = StringIO()
+      asciidoc_fn(infile, out, **asciidoc_args)
+      out.seek(0)
+      return out
   args = {'language': ext, 'comments':COMMENTS.get(ext, None)}
   args.update(kwargs)
   with open(path) as f:
-    return process_string(asciidoc_fn, f.read(), **args)
+    return process_string(asciidoc_fn, f, asciidoc_args=asciidoc_args, **args)
 
-def process_lines(asciidoc_fn, lines, **kwargs):
-  return process_string(asciidoc_fn, os.linesep.join(lines), **kwargs)
+def process_lines(asciidoc_fn, lines, append_line_sep=False, **kwargs):
+  if append_line_sep:
+    lines = [line + "\n" for line in lines]
+  return process_string(asciidoc_fn, lines, **kwargs)
+
+def asciidoc_filter(lines, asciidoc_fn=None, **kwargs):
+  return process_lines(asciidoc_fn, lines, append_line_sep=True, **kwargs)
