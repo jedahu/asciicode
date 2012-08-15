@@ -10,5 +10,6 @@ setup(
     license='GPL2',
     description='Simple quasi-literate programming tool.',
     long_description=open('README').read(),
+    package_data={'asciicode', ['filter.conf']},
     include_package_data=True
     )
