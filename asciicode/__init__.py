@@ -49,7 +49,7 @@ def is_modeline(line):
   return None
 
 def parse_attr_val(name, string):
-  if name == 'src_numbered':
+  if name == 'numbered':
     return {name: string.lower() not in ('no', 'false', '0')}
   elif name == 'comments':
     return {name: ast.literal_eval(string)}
@@ -120,7 +120,7 @@ def parse_blocks(
     else:
       if not code_block:
         attrlist = ['source', language]
-        if src_numbered:
+        if numbered:
           attrlist.append('numbered')
         output.write('[' + ','.join(attrlist) + "]\n")
         output.write("-----\n")
