@@ -76,6 +76,11 @@ def parse_blocks(
   if not comments and not language:
     raise EAsciiCode, 'No language or comments makes asciicode sad.'
 
+  if language == 'text':
+    for line in stream:
+      output.write(line)
+    return
+
   if not comments and language:
     comments = COMMENTS[language]
 
