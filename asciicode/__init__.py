@@ -135,12 +135,16 @@ def parse_blocks(
 
 
 def process_string(asciidoc_fn, stream, modeline_depth=None, asciidoc_args={}, **kwargs):
+  path = asciidoc_args.get('inpath')
+  ext = os.path.splitext(path)[1][1:] if path else None
+  args = {'language': ext, 'comments':COMMENTS.get(ext)}
+  args.update(kwargs)
   conf = modeline_conf(stream, modeline_depth)
   if hasattr(stream, 'seek'):
     stream.seek(0)
-  kwargs.update(conf)
+  args.update(conf)
   parsed = StringIO()
-  parse_blocks(stream, parsed, **kwargs)
+  parse_blocks(stream, parsed, **args)
   with open('/tmp/out.txt', 'w') as f:
     f.write(parsed.getvalue())
   parsed.seek(0)
@@ -168,8 +172,6 @@ def process_path(asciidoc_fn, path, modeline_depth=None, asciidoc_args={}, **kwa
       asciidoc_fn(infile, out, **asciidoc_args)
       out.seek(0)
       return out
-  args = {'language': ext, 'comments':COMMENTS.get(ext, None)}
-  args.update(kwargs)
   with open(path) as f:
     return process_string(asciidoc_fn, f, asciidoc_args=asciidoc_args, **args)
 
