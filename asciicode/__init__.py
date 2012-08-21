@@ -93,8 +93,8 @@ def parse_blocks(
   startRE = re.compile('''^(\s*?)''' + startTag + '''\s*$''')
   midRE = None
   if mid:
-    midRE = re.compile('''^(\s*?''' + midTag + ''')\s*''')
-  endRE = re.compile('''^(\s*?)''' + endTag + '''$''')
+    midRE = re.compile('''^(\s*?''' + midTag + ''')''')
+  endRE = re.compile('''^(\s*?)''' + endTag + '''\s*$''')
 
   doc_block = False
   code_block = False
