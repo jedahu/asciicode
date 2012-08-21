@@ -102,8 +102,6 @@ def parse_blocks(
 
   for line in stream:
 
-    with open('/tmp/all', 'a') as f:
-      f.write(line)
     start_match = startRE.match(line)
     if not doc_block and start_match:
       if code_block:
