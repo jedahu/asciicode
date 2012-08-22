@@ -137,7 +137,10 @@ def parse_blocks(
 def process_string(asciidoc_fn, stream, modeline_depth=None, asciidoc_args={}, **kwargs):
   path = asciidoc_args.get('inpath')
   ext = os.path.splitext(path)[1][1:] if path else None
-  args = {'language': ext, 'comments':COMMENTS.get(ext)}
+  args = {}
+  if ext:
+    args['language'] = ext
+    args['comments'] = COMMENTS.get(ext)
   args.update(kwargs)
   conf = modeline_conf(stream, modeline_depth)
   if hasattr(stream, 'seek'):
