@@ -127,7 +127,7 @@ def parse_blocks(
         attrlist = ['source', language]
         if numbered:
           attrlist.append('numbered')
-        output.write('[' + ','.join(attrlist) + "]\n")
+        output.write('[' + ','.join(attrlist).encode('utf-8') + "]\n")
         output.write("-----\n")
         code_block = True
       output.write(line)
