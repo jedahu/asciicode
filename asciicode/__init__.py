@@ -150,8 +150,6 @@ def process_string(asciidoc_fn, stream, modeline_depth=None, asciidoc_args={}, *
   args.update(conf)
   parsed = StringIO()
   parse_blocks(stream, parsed, **args)
-  with open('/tmp/out.txt', 'w') as f:
-    f.write(parsed.getvalue())
   parsed.seek(0)
   out = StringIO()
   asciidoc_fn(parsed, out, **asciidoc_args)
