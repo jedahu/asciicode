@@ -147,9 +147,11 @@ def process_string(asciidoc_fn, stream, modeline_depth=None, asciidoc_args={}, *
     args['language'] = ext
     args['comments'] = COMMENTS.get(ext)
   args.update(kwargs)
+  if hasattr(stream, 'tell'):
+    pos = stream.tell()
   conf = modeline_conf(stream, modeline_depth)
   if hasattr(stream, 'seek'):
-    stream.seek(0)
+    stream.seek(pos)
   args.update(conf)
   parsed = StringIO()
   parse_blocks(stream, parsed, **args)
