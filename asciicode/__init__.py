@@ -121,7 +121,10 @@ def parse_blocks(
           raise EAsciiCode, 'Could not find comment: %s' % mid
         mid_indent = len(mid_match.groups()[0]) + 1
         line = line[mid_indent:]
-      output.write(line)
+      if line:
+        output.write(line)
+      else:
+        output.write('\n')
     else:
       if not code_block:
         attrlist = ['source', language]
